@@ -5,24 +5,21 @@ import threading
 def receive_messages(client_socket):
     while True:
         #try:
-            data = client_socket.recv(1024)
-            msg_type = data.decode()[1]
-            msg = data.decode()[0]
+            data = client_socket.recv(1024).decode("utf-8")
 
             if not data:
                 break
-            elif msg_type == 1:
-                res = input(msg).lower()
-                client_socket.send([res, 1])
-            else:
-                print("Dealer: ", data.decode())
+            elif data == "Deseja [M]ais uma carta ou quer [P]arar? ":
+                res = input().lower()
+                client_socket.sendall(res)
+            
             """except socket.error as error:
             # Handle socket errors if any
             print("Error receiving data from the server.")
             break"""
 
 serverName = 'localhost'
-serverPort = 2048
+serverPort = 2047
 
 client_socket = socket(AF_INET, SOCK_STREAM)
 client_socket.connect((serverName,serverPort))

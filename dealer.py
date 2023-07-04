@@ -27,22 +27,22 @@ def player_input_action(player, escolha):
             HAND.receber_carta(random.choice(baralho))
 
         # Mostra as mãos do jogador e do dealer
-        send_client_data("\n--- Fim do jogo ---", p_addr)
-        send_client_data(f"Sua mão:  {p_hand.cartas}", p_addr)
-        send_client_data(f"Pontuação: {player.calcular_pontos()}", p_addr)
-        send_client_data(f"Mão do dealer: {HAND.cartas}", p_addr)
-        send_client_data(f"Pontuação do dealer: {HAND.calcular_pontos()}", p_addr)
+        p_socket.sendall("\n--- Fim do jogo ---")
+        p_socket.sendall(f"Sua mão:  {p_hand.cartas}")
+        p_socket.sendall(f"Pontuação: {player.calcular_pontos()}")
+        p_socket.sendall(f"Mão do dealer: {HAND.cartas}")
+        p_socket.sendall(f"Pontuação do dealer: {HAND.calcular_pontos()}")
 
         # Verifica o resultado do jogo
         pontos_jogador = player.calcular_pontos()
         pontos_dealer = HAND.calcular_pontos()
 
         if pontos_jogador > pontos_dealer:
-            send_client_data("Você venceu!", p_addr)
+            p_socket.sendall("Você venceu!")
         elif pontos_jogador < pontos_dealer:
-            send_client_data("Você perdeu!", p_addr)
+            p_socket.sendall("Você perdeu!")
         else:
-            send_client_data("Empate!", p_addr)
+            p_socket.sendall("Empate!")
 
         quit()
 
@@ -63,54 +63,70 @@ def novo_jogo():
         # Mostra as cartas do jogador e a primeira carta do dealer
         for player in players:
             p_addr = player.getClientAddr()
+            p_socket = player.getClientSocket()
             p_hand = player.getClientHand()
 
             msg = f"\nSua mão: {p_hand.cartas}\nPontuação: {p_hand.calcular_pontos()}\nDealer mostra: {HAND.cartas[0]}"
-            send_client_data(msg, p_addr)
+            p_socket.sendall(msg.encode("utf-8"))
 
 
             # Verifica se o jogador já estourou 21 pontos
             if player.calcular_pontos() > 21:
-                send_client_data("Você estourou 21 pontos! Você perdeu.", p_addr)
+                p_socket.sendall("Você estourou 21 pontos! Você perdeu.")
                 break
 
             # Pergunta ao jogador se ele deseja receber mais uma carta ou parar
-            send_client_data("Deseja [M]ais uma carta ou quer [P]arar? ", p_addr, 1) # Como solicitar entrada ao player?
-            # escolha = input("Deseja [M]ais uma carta ou quer [P]arar? ").lower()
-            # player_input_action(player, escolha)
+            p_socket.sendall("Deseja [M]ais uma carta ou quer [P]arar? ".encode("utf-8"))
+
+            escolha = p_socket.recv(1024).decode("utf-8")
+
+            if escolha == 'm':
+                player.receber_carta(random.choice(baralho))
+            else:
+                # Jogador parou, agora é a vez do dealer
+                # Dealer recebe mais cartas até atingir pelo menos 17 pontos
+                while HAND.calcular_pontos() < 17:
+                    HAND.receber_carta(random.choice(baralho))
+
+                # Mostra as mãos do jogador e do dealer
+                p_socket.sendall("\n--- Fim do jogo ---".encode("utf-8"))
+                p_socket.sendall(f"Sua mão:  {p_hand.cartas}".encode("utf-8"))
+                p_socket.sendall(f"Pontuação: {player.calcular_pontos()}".encode("utf-8"))
+                p_socket.sendall(f"Mão do dealer: {HAND.cartas}".encode("utf-8"))
+                p_socket.sendall(f"Pontuação do dealer: {HAND.calcular_pontos()}".encode("utf-8"))
+
+                # Verifica o resultado do jogo
+                pontos_jogador = player.calcular_pontos()
+                pontos_dealer = HAND.calcular_pontos()
+
+                if pontos_jogador > pontos_dealer:
+                    p_socket.sendall("Você venceu!")
+                elif pontos_jogador < pontos_dealer:
+                    p_socket.sendall("Você perdeu!")
+                else:
+                    p_socket.sendall("Empate!")
+                    # escolha = input("Deseja [M]ais uma carta ou quer [P]arar? ").lower()
+                    # player_input_action(player, escolha)
+                break
 
 # --------------------------------------------------------------------------------SERVIDOR--------------------------------------------------------------------------------
 
 HOST = 'localhost'
-PORT = 2048
+PORT = 2047
 NUM_CLIENTS = 4
 HAND = None
-
-def send_client_data(data, addr, msg_type=0): # 0 -> mensagem comum; 1 -> mensagem de input()
-    data = [data, msg_type]
-    for player in players:
-        p_addr = player.getClientAddr()
-        client_socket = player.getClientSocket()
-        if addr == p_addr:
-            client_socket.sendall(data)
-
 # Function to handle client connections
 def handle_client(player):
     client_socket = player.getClientSocket()
     # Perform operations with the client
-    # Example: echo server
     while True:
-        data = client_socket.recv(1024)
-        msg_type = data[1]
-        msg = data[0]
+        data = client_socket.recv(1024).decode("utf-8")
 
         if not data:
             break
-        elif msg_type == 1: # 0 -> mensagem comum; 1 -> mensagem de resposta a um input()
-            player_input_action(player, msg)
-        else:
-            broadcast_client_data(data)
-            client_socket.sendall(data)
+
+        # broadcast_client_data(data)
+        # client_socket.sendall(data)
     client_socket.close()
 
 # Function to accept and handle client connections
