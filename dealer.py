@@ -4,6 +4,7 @@ import sys
 
 import random
 from client import Client
+from threading import Event
 from mao import Mao
 
 baralho = [
@@ -19,6 +20,7 @@ class Server:
         self.server = None
         self.threads = []
         self.hand = Mao()
+        self.pause_counter = 2 # Usado para continuar a execução da thread principal
 
     def open_socket(self):
         try:
@@ -36,6 +38,39 @@ class Server:
             client_socket = client.client
 
             client_socket.send(msg.encode("utf-8"))
+    
+    def dealer_turn(self):
+        print('EH A VEZ DO DEALER')
+        # Jogador parou, agora é a vez do dealer
+        # Dealer recebe mais cartas até atingir pelo menos 17 pontos
+        while self.hand.calcular_pontos() < 17:
+            self.hand.receber_carta(random.choice(baralho))
+            self.broadcast(self.hand.cartas)
+
+        # Mostra as mãos do jogador e do dealer
+        for thread in self.threads:
+            thread.client.send("\n--- Fim do jogo ---".encode("utf-8"))
+            thread.client.send(f"\nSua mão: {thread.get_cartas()}".encode("utf-8"))
+            thread.client.send(f"\nPontuação: {thread.calcular_pontos()}".encode("utf-8"))
+        
+        self.broadcast(f"\nMão do dealer: {self.hand.cartas}")
+        self.broadcast(f"\nPontuação do dealer: {self.hand.calcular_pontos()}")
+
+        # Verifica o resultado do jogo
+        for thread in self.threads:
+            pontos_jogador = thread.calcular_pontos()
+            pontos_dealer = self.hand.calcular_pontos()
+            if pontos_dealer <= 21 and pontos_jogador <= 21:
+                if pontos_jogador > pontos_dealer:
+                    thread.client.send("\nVocê venceu!".encode("utf-8"))
+                elif pontos_jogador < pontos_dealer:
+                    thread.client.send("\nVocê perdeu!".encode("utf-8"))
+                else:
+                    thread.client.send("\nEmpate!".encode("utf-8"))
+            elif pontos_dealer > 21 and pontos_jogador > 21:
+                thread.client.send("\nDealer perdeu!".encode("utf-8"))
+            elif pontos_dealer <= 21 and pontos_jogador > 21:
+                thread.client.send("\nDealer venceu!".encode("utf-8"))
 
     # Função para iniciar um novo jogo
     def blackjack(self, thread):
@@ -58,6 +93,7 @@ class Server:
             # Verifica se o jogador já estourou 21 pontos
             if thread.calcular_pontos() > 21:
                 thread.client.send("\nVocê estourou 21 pontos! Você perdeu.".encode("utf-8"))
+                self.pause_counter -= 1
                 break
 
             # Pergunta ao jogador se ele deseja receber mais uma carta ou parar
@@ -67,7 +103,8 @@ class Server:
             if escolha.decode() == 'm':
                 thread.receber_carta(random.choice(baralho))
             else:
-                # Jogador parou, agora é a vez do dealer
+                self.pause_counter -= 1
+                """# Jogador parou, agora é a vez do dealer
                 # Dealer recebe mais cartas até atingir pelo menos 17 pontos
                 while self.hand.calcular_pontos() < 17:
                     self.hand.receber_carta(random.choice(baralho))
@@ -89,7 +126,7 @@ class Server:
                     elif pontos_jogador < pontos_dealer:
                         thread.client.send("\nVocê perdeu!".encode("utf-8"))
                     else:
-                        thread.client.send("\nEmpate!".encode("utf-8"))
+                        thread.client.send("\nEmpate!".encode("utf-8"))"""
 
                 break
 
@@ -102,27 +139,28 @@ class Server:
 
         running = 1
         while running:
-            inputready,outputready,exceptready = select.select(input,[],[])
+            #inputready,outputready,exceptready = select.select(input,[],[])
 
-            for s in inputready:
+            #for s in inputready:
 
-                if s == self.server:
+                #if s == self.server:
                     # handle the server socket
-                    client, address = self.server.accept()
-                    c = Client(client, address, self.blackjack)
-                    c.start()
-                    self.threads.append(c)
+            if len(self.threads) < 2:
+                client, address = self.server.accept()
+                c = Client(client, address, self.blackjack)
+                c.start()
+                self.threads.append(c)
 
-                elif s == sys.stdin:
+                #elif s == sys.stdin:
                     # handle standard input
-                    junk = sys.stdin.readline()
-                    running = 0
-                
-            """if len(self.threads) == 2:
-                self.blackjack()"""
+                    #junk = sys.stdin.readline()
+                    #running = 0
+            if self.pause_counter == 0:
+                running = 0
 
+        self.dealer_turn()
+        
         # close all threads
-
         self.server.close()
         for c in self.threads:
             c.join()

@@ -19,13 +19,18 @@ class Client(threading.Thread):
         return self.hand.calcular_pontos()
 
     def run(self):
+        print(threading.main_thread())
         self.target_func(self)
         running = 1
         while running:
-            data = self.client.recv(self.size)
-            if data:
-                self.client.send(data)
-                print(data.decode('utf-8'))
-            else:
+            try:
+                data = self.client.recv(self.size)
+                if data:
+                    self.client.send(data)
+                    print(data.decode('utf-8'))
+                else:
+                    self.client.close()
+                    running = 0
+            except KeyboardInterrupt:
                 self.client.close()
                 running = 0
