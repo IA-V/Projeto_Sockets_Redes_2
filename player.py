@@ -15,7 +15,6 @@ try:
     while True:
         # Receive the server's response
         data = client_socket.recv(1024)
-        print(data.decode())
         if data.decode().endswith("\nDeseja [M]ais uma carta ou quer [P]arar? "):
             res = input().lower()
             client_socket.send(res.encode("utf-8"))

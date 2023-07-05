@@ -8,6 +8,7 @@ class Client(threading.Thread):
         self.size = 1024
         self.hand = None
         self.target_func = target_func
+        self.lost = False
 
     def get_cartas(self):
         return self.hand.cartas

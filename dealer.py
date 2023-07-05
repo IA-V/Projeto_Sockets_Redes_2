@@ -40,12 +40,11 @@ class Server:
             client_socket.send(msg.encode("utf-8"))
     
     def dealer_turn(self):
-        print('EH A VEZ DO DEALER')
         # Jogador parou, agora é a vez do dealer
         # Dealer recebe mais cartas até atingir pelo menos 17 pontos
         while self.hand.calcular_pontos() < 17:
             self.hand.receber_carta(random.choice(baralho))
-            self.broadcast(self.hand.cartas)
+            self.broadcast(str(self.hand.cartas))
 
         # Mostra as mãos do jogador e do dealer
         for thread in self.threads:
@@ -56,21 +55,30 @@ class Server:
         self.broadcast(f"\nMão do dealer: {self.hand.cartas}")
         self.broadcast(f"\nPontuação do dealer: {self.hand.calcular_pontos()}")
 
+        pontos_dealer = self.hand.calcular_pontos()
+
         # Verifica o resultado do jogo
         for thread in self.threads:
             pontos_jogador = thread.calcular_pontos()
-            pontos_dealer = self.hand.calcular_pontos()
-            if pontos_dealer <= 21 and pontos_jogador <= 21:
+
+            if pontos_jogador > 21 and pontos_dealer <= 21:
+                self.broadcast(f"\nDealer venceu o jogador {thread.name}!")
+                # thread.client.send("\nDealer venceu!".encode("utf-8"))
+            elif (pontos_dealer <= 21 and pontos_jogador <= 21):
                 if pontos_jogador > pontos_dealer:
-                    thread.client.send("\nVocê venceu!".encode("utf-8"))
+                    self.broadcast(f"\n{thread.name} venceu o Dealer!")
+                    # thread.client.send("\nVocê venceu!".encode("utf-8"))
                 elif pontos_jogador < pontos_dealer:
-                    thread.client.send("\nVocê perdeu!".encode("utf-8"))
+                    self.broadcast(f"\n{thread.name} perdeu para o Dealer!")
+                    # thread.client.send("\nVocê perdeu!".encode("utf-8"))
                 else:
-                    thread.client.send("\nEmpate!".encode("utf-8"))
-            elif pontos_dealer > 21 and pontos_jogador > 21:
-                thread.client.send("\nDealer perdeu!".encode("utf-8"))
-            elif pontos_dealer <= 21 and pontos_jogador > 21:
-                thread.client.send("\nDealer venceu!".encode("utf-8"))
+                    self.broadcast(f"\n{thread.name} empatou com o Dealer!")
+                    # thread.client.send("\nEmpate!".encode("utf-8"))
+            elif pontos_dealer > 21 and pontos_jogador <= 21:
+                self.broadcast(f"\n{thread.name} venceu o Dealer!")
+                # thread.client.send("\nDealer perdeu!".encode("utf-8"))
+            elif (pontos_dealer > 21 and pontos_jogador > 21):
+                self.broadcast(f"\n{thread.name} e Dealer perderam!")
 
     # Função para iniciar um novo jogo
     def blackjack(self, thread):
@@ -93,6 +101,7 @@ class Server:
             # Verifica se o jogador já estourou 21 pontos
             if thread.calcular_pontos() > 21:
                 thread.client.send("\nVocê estourou 21 pontos! Você perdeu.".encode("utf-8"))
+                thread.lost = True
                 self.pause_counter -= 1
                 break
 
