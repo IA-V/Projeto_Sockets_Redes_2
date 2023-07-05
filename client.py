@@ -1,44 +1,31 @@
-from socket import *
 import threading
 
-# Function to receive broadcast messages from the server
-def receive_messages(client_socket):
-    while True:
-        #try:
-            data = client_socket.recv(1024).decode("utf-8")
+class Client(threading.Thread):
+    def __init__(self,client,address, target_func):
+        threading.Thread.__init__(self)
+        self.client = client
+        self.address = address
+        self.size = 1024
+        self.hand = None
+        self.target_func = target_func
 
-            if not data:
-                break
-            elif data == "Deseja [M]ais uma carta ou quer [P]arar? ":
-                res = input().lower()
-                client_socket.sendall(res)
-            
-            """except socket.error as error:
-            # Handle socket errors if any
-            print("Error receiving data from the server.")
-            break"""
+    def get_cartas(self):
+        return self.hand.cartas
 
-serverName = 'localhost'
-serverPort = 2047
+    def receber_carta(self, carta):
+        self.hand.receber_carta(carta)
+    
+    def calcular_pontos(self):
+        return self.hand.calcular_pontos()
 
-client_socket = socket(AF_INET, SOCK_STREAM)
-client_socket.connect((serverName,serverPort))
-
-receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
-receive_thread.start()
-
-try:
-    # Main client loop
-    while True:
-        # Get user input to send to the server
-        message = input("Enter a message to send to the server (or 'exit' to quit): ")
-        if message == 'exit':
-            break
-        # Send the message to the server
-        message += '_0'
-        client_socket.sendall(message.encode())
-except KeyboardInterrupt:
-    # Stop the client on keyboard interrupt
-    print("Client stopped.")
-
-client_socket.close()
+    def run(self):
+        self.target_func(self)
+        running = 1
+        while running:
+            data = self.client.recv(self.size)
+            if data:
+                self.client.send(data)
+                print(data.decode('utf-8'))
+            else:
+                self.client.close()
+                running = 0

@@ -1,22 +1,27 @@
-from mao import Mao
+import socket
 
-class Player:
-    def __init__(self, client_socket, addr):
-        self.hand = Mao()
-        self.client_socket = client_socket
-        self.addr = addr
-    
-    def getClientSocket(self):
-        return self.client_socket
-    
-    def getClientAddr(self):
-        return self.addr
+# Server configuration
+HOST = 'localhost'
+PORT = 2048
 
-    def getClientHand(self):
-        return self.hand
-    
-    def receber_carta(self, carta):
-        self.hand.receber_carta(carta)
-    
-    def calcular_pontos(self):
-        return self.hand.calcular_pontos()
+# Create a socket object
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+    # Connect to the server
+    client_socket.connect((HOST, PORT))
+    print("Connected to the server.")
+
+    while True:
+        # Receive the server's response
+        data = client_socket.recv(1024)
+        print(data.decode())
+        if data.decode().endswith("\nDeseja [M]ais uma carta ou quer [P]arar? "):
+            res = input().lower()
+            client_socket.send(res.encode("utf-8"))
+
+except KeyboardInterrupt:
+    print("Client disconnect.")
+finally:
+    # Close the client socket
+    client_socket.close()

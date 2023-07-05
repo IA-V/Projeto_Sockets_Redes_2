@@ -1,188 +1,133 @@
-import random
-
+import select
 import socket
-import threading
-from queue import Queue
+import sys
+
+import random
+from client import Client
 from mao import Mao
-from player import Player
 
-
-# --------------------------------------------------------------------------------JOGO--------------------------------------------------------------------------------
-
-# Definindo as cartas e seus valores
 baralho = [
     'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'
 ]
 
-def player_input_action(player, escolha):
-    p_addr = player.getClientAddr()
-    p_hand = player.getClientHand()
+class Server:
+    def __init__(self):
+        self.host = 'localhost'
+        self.port = 2048
+        self.backlog = 5
+        self.size = 1024
+        self.server = None
+        self.threads = []
+        self.hand = Mao()
 
-    if escolha == 'm':
-        player.receber_carta(random.choice(baralho))
-    else:
-        # Jogador parou, agora é a vez do dealer
-        # Dealer recebe mais cartas até atingir pelo menos 17 pontos
-        while HAND.calcular_pontos() < 17:
-            HAND.receber_carta(random.choice(baralho))
+    def open_socket(self):
+        try:
+            self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server.bind((self.host, self.port))
+            self.server.listen(5)
+        except socket.error (value,message):
+            if self.server:
+                self.server.close()
+            print("Could not open socket: " + message)
+            sys.exit(1)
 
-        # Mostra as mãos do jogador e do dealer
-        p_socket.sendall("\n--- Fim do jogo ---")
-        p_socket.sendall(f"Sua mão:  {p_hand.cartas}")
-        p_socket.sendall(f"Pontuação: {player.calcular_pontos()}")
-        p_socket.sendall(f"Mão do dealer: {HAND.cartas}")
-        p_socket.sendall(f"Pontuação do dealer: {HAND.calcular_pontos()}")
+    def broadcast(self, msg):
+        for client in self.threads:
+            client_socket = client.client
 
-        # Verifica o resultado do jogo
-        pontos_jogador = player.calcular_pontos()
-        pontos_dealer = HAND.calcular_pontos()
+            client_socket.send(msg.encode("utf-8"))
 
-        if pontos_jogador > pontos_dealer:
-            p_socket.sendall("Você venceu!")
-        elif pontos_jogador < pontos_dealer:
-            p_socket.sendall("Você perdeu!")
-        else:
-            p_socket.sendall("Empate!")
+    # Função para iniciar um novo jogo
+    def blackjack(self, thread):
+        print(thread)        
 
-        quit()
+        # Inicializando a mão do jogador
+        thread.hand = Mao()
 
-
-def novo_jogo():
-    # Inicializando as mãos dos jogadores e do dealer
-    HAND = Mao()
-    HAND.receber_carta(random.choice(baralho)) # carta 1 do Dealer
-    HAND.receber_carta(random.choice(baralho)) # carta 2 do Dealer
-
-    # Distribuindo duas cartas para cada jogador
-    for player in players:
+        # Distribuindo duas cartas para cada jogador
         for _ in range(2):
-            player.receber_carta(random.choice(baralho))
+            thread.receber_carta(random.choice(baralho))
 
-    # Loop do jogo
-    while True:
-        # Mostra as cartas do jogador e a primeira carta do dealer
-        for player in players:
-            p_addr = player.getClientAddr()
-            p_socket = player.getClientSocket()
-            p_hand = player.getClientHand()
-
-            msg = f"\nSua mão: {p_hand.cartas}\nPontuação: {p_hand.calcular_pontos()}\nDealer mostra: {HAND.cartas[0]}"
-            p_socket.sendall(msg.encode("utf-8"))
-
+        # Loop do jogo
+        while True:
+            # Mostra as cartas do jogador e a primeira carta do dealer
+            thread.client.send(f"\nSua mão: {thread.get_cartas()}".encode("utf-8"))
+            thread.client.send(f"\nPontuação: {thread.calcular_pontos()}".encode("utf-8"))
+            thread.client.send(f"\nDealer mostra: {self.hand.cartas[0]}".encode("utf-8"))
 
             # Verifica se o jogador já estourou 21 pontos
-            if player.calcular_pontos() > 21:
-                p_socket.sendall("Você estourou 21 pontos! Você perdeu.")
+            if thread.calcular_pontos() > 21:
+                thread.client.send("\nVocê estourou 21 pontos! Você perdeu.".encode("utf-8"))
                 break
 
             # Pergunta ao jogador se ele deseja receber mais uma carta ou parar
-            p_socket.sendall("Deseja [M]ais uma carta ou quer [P]arar? ".encode("utf-8"))
+            thread.client.send("\nDeseja [M]ais uma carta ou quer [P]arar? ".encode("utf-8"))
 
-            escolha = p_socket.recv(1024).decode("utf-8")
-
-            if escolha == 'm':
-                player.receber_carta(random.choice(baralho))
+            escolha = thread.client.recv(1024)
+            if escolha.decode() == 'm':
+                thread.receber_carta(random.choice(baralho))
             else:
                 # Jogador parou, agora é a vez do dealer
                 # Dealer recebe mais cartas até atingir pelo menos 17 pontos
-                while HAND.calcular_pontos() < 17:
-                    HAND.receber_carta(random.choice(baralho))
+                while self.hand.calcular_pontos() < 17:
+                    self.hand.receber_carta(random.choice(baralho))
+                    self.broadcast(self.hand)
 
                 # Mostra as mãos do jogador e do dealer
-                p_socket.sendall("\n--- Fim do jogo ---".encode("utf-8"))
-                p_socket.sendall(f"Sua mão:  {p_hand.cartas}".encode("utf-8"))
-                p_socket.sendall(f"Pontuação: {player.calcular_pontos()}".encode("utf-8"))
-                p_socket.sendall(f"Mão do dealer: {HAND.cartas}".encode("utf-8"))
-                p_socket.sendall(f"Pontuação do dealer: {HAND.calcular_pontos()}".encode("utf-8"))
+                thread.client.send("\n--- Fim do jogo ---".encode("utf-8"))
+                thread.client.send(f"\nSua mão: {thread.get_cartas()}".encode("utf-8"))
+                thread.client.send(f"\nPontuação: {thread.calcular_pontos()}".encode("utf-8"))
+                thread.client.send(f"\nMão do dealer: {self.hand.cartas}".encode("utf-8"))
+                thread.client.send(f"\nPontuação do dealer: {self.hand.calcular_pontos()}".encode("utf-8"))
 
                 # Verifica o resultado do jogo
-                pontos_jogador = player.calcular_pontos()
-                pontos_dealer = HAND.calcular_pontos()
+                pontos_jogador = thread.calcular_pontos()
+                pontos_dealer = self.hand.calcular_pontos()
+                if pontos_dealer <= 21:
+                    if pontos_jogador > pontos_dealer:
+                        thread.client.send("\nVocê venceu!".encode("utf-8"))
+                    elif pontos_jogador < pontos_dealer:
+                        thread.client.send("\nVocê perdeu!".encode("utf-8"))
+                    else:
+                        thread.client.send("\nEmpate!".encode("utf-8"))
 
-                if pontos_jogador > pontos_dealer:
-                    p_socket.sendall("Você venceu!")
-                elif pontos_jogador < pontos_dealer:
-                    p_socket.sendall("Você perdeu!")
-                else:
-                    p_socket.sendall("Empate!")
-                    # escolha = input("Deseja [M]ais uma carta ou quer [P]arar? ").lower()
-                    # player_input_action(player, escolha)
                 break
 
-# --------------------------------------------------------------------------------SERVIDOR--------------------------------------------------------------------------------
+    def run(self):
+        self.open_socket()
+        input = [self.server]
 
-HOST = 'localhost'
-PORT = 2047
-NUM_CLIENTS = 4
-HAND = None
-# Function to handle client connections
-def handle_client(player):
-    client_socket = player.getClientSocket()
-    # Perform operations with the client
-    while True:
-        data = client_socket.recv(1024).decode("utf-8")
+        for _ in range(2):
+            self.hand.receber_carta(random.choice(baralho))
 
-        if not data:
-            break
+        running = 1
+        while running:
+            inputready,outputready,exceptready = select.select(input,[],[])
 
-        # broadcast_client_data(data)
-        # client_socket.sendall(data)
-    client_socket.close()
+            for s in inputready:
 
-# Function to accept and handle client connections
-def accept_connections(server_socket):
-    while True:
-        client_socket, addr = server_socket.accept()
-        print(f"Accepted connection from {addr}")
-        player = Player(client_socket, addr)
-        players.append(player)
+                if s == self.server:
+                    # handle the server socket
+                    client, address = self.server.accept()
+                    c = Client(client, address, self.blackjack)
+                    c.start()
+                    self.threads.append(c)
 
-        # Create a new thread to handle the client connection
-        client_thread = threading.Thread(target=handle_client, args=(player,))
-        client_thread.start()
+                elif s == sys.stdin:
+                    # handle standard input
+                    junk = sys.stdin.readline()
+                    running = 0
+                
+            """if len(self.threads) == 2:
+                self.blackjack()"""
 
-        if len(players) >= 2:
-            novo_jogo()
+        # close all threads
 
-def broadcast_client_data(data):
-    for player in players:
-        client_socket = player.getClientSocket()
-        try:
-            client_socket.sendall(data)
-        except socket.error:
-            # Handle socket errors if any
-            print("Error broadcasting data to a client.")
+        self.server.close()
+        for c in self.threads:
+            c.join()
 
-# Create a socket object
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-# Bind the socket to a specific address and port
-server_socket.bind((HOST, PORT))
-
-# Listen for incoming connections
-server_socket.listen(NUM_CLIENTS)
-print(f"Server listening on {HOST}:{PORT}")
-
-# Create a queue to hold the client threads
-client_threads = []
-
-# Lista de clientes conectados
-players = []
-
-# Start accepting connections in a separate thread
-accept_thread = threading.Thread(target=accept_connections, args=(server_socket,))
-accept_thread.start()
-
-# Add the accept thread to the client threads queue
-client_threads.append(accept_thread)
-
-try:
-    # Wait for all client threads to finish
-    for thread in client_threads:
-        thread.join()
-except KeyboardInterrupt:
-    # Stop the server on keyboard interrupt
-    print("Server stopped.")
-finally:
-    # Close the server socket
-    server_socket.close()
+if __name__ == "__main__":
+    s = Server()
+    s.run()
