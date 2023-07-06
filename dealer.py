@@ -41,7 +41,7 @@ class Server:
     
     # Envia uma mensagem requisitando uma entrada a um cliente específico
     def req_input(self, thread):
-        thread.client.send("input".encode("utf-8"))
+        thread.client.send("\nDeseja [M]ais uma carta ou quer [P]arar? ".encode("utf-8"))
 
     # Simula a vez de jogar do Dealer (servidor), jogando a mão dele e calculando os resultados finais do jogo
     def dealer_turn(self):

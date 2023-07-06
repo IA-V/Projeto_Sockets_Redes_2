@@ -14,11 +14,10 @@ try:
     while True: # Loop para recebimento e tratamento das mensagens do servidor
         
         data = client_socket.recv(1024)
-        if data.decode().endswith("input"): # Se o servidor requisitou entrada, exibe a mensagem de entrada
-            res = input("\nDeseja [M]ais uma carta ou quer [P]arar? ").lower()
+        print(data.decode())
+        if data.decode().endswith("\nDeseja [M]ais uma carta ou quer [P]arar? "): # Se o servidor requisitou entrada, exibe a mensagem de entrada
+            res = input().lower()
             client_socket.send(res.encode("utf-8"))
-        else:
-            print(data.decode())
 
 except KeyboardInterrupt:
     print("Cliente desconectou.")
