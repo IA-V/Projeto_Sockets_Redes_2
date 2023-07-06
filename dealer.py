@@ -1,10 +1,8 @@
-import select
 import socket
 import sys
 
 import random
 from client import Client
-from threading import Event
 from mao import Mao
 
 baralho = [
@@ -39,8 +37,12 @@ class Server:
 
             client_socket.send(msg.encode("utf-8"))
     
+    def req_input(self, thread):
+        thread.client.send("input".encode("utf-8"))
+
     def dealer_turn(self):
         # Jogador parou, agora é a vez do dealer
+        self.broadcast(f"\nDealer mostra: [{self.hand.cartas[0]}, {self.hand.cartas[1]}]")
         # Dealer recebe mais cartas até atingir pelo menos 17 pontos
         while self.hand.calcular_pontos() < 17:
             self.hand.receber_carta(random.choice(baralho))
@@ -62,7 +64,7 @@ class Server:
             pontos_jogador = thread.calcular_pontos()
 
             if pontos_jogador > 21 and pontos_dealer <= 21:
-                self.broadcast(f"\nDealer venceu o jogador {thread.name}!")
+                self.broadcast(f"\n{thread.name} perdeu para o Dealer!")
                 # thread.client.send("\nDealer venceu!".encode("utf-8"))
             elif (pontos_dealer <= 21 and pontos_jogador <= 21):
                 if pontos_jogador > pontos_dealer:
@@ -101,41 +103,17 @@ class Server:
             # Verifica se o jogador já estourou 21 pontos
             if thread.calcular_pontos() > 21:
                 thread.client.send("\nVocê estourou 21 pontos! Você perdeu.".encode("utf-8"))
-                thread.lost = True
                 self.pause_counter -= 1
                 break
 
             # Pergunta ao jogador se ele deseja receber mais uma carta ou parar
-            thread.client.send("\nDeseja [M]ais uma carta ou quer [P]arar? ".encode("utf-8"))
+            self.req_input(thread)
 
             escolha = thread.client.recv(1024)
             if escolha.decode() == 'm':
                 thread.receber_carta(random.choice(baralho))
             else:
                 self.pause_counter -= 1
-                """# Jogador parou, agora é a vez do dealer
-                # Dealer recebe mais cartas até atingir pelo menos 17 pontos
-                while self.hand.calcular_pontos() < 17:
-                    self.hand.receber_carta(random.choice(baralho))
-                    self.broadcast(self.hand)
-
-                # Mostra as mãos do jogador e do dealer
-                thread.client.send("\n--- Fim do jogo ---".encode("utf-8"))
-                thread.client.send(f"\nSua mão: {thread.get_cartas()}".encode("utf-8"))
-                thread.client.send(f"\nPontuação: {thread.calcular_pontos()}".encode("utf-8"))
-                thread.client.send(f"\nMão do dealer: {self.hand.cartas}".encode("utf-8"))
-                thread.client.send(f"\nPontuação do dealer: {self.hand.calcular_pontos()}".encode("utf-8"))
-
-                # Verifica o resultado do jogo
-                pontos_jogador = thread.calcular_pontos()
-                pontos_dealer = self.hand.calcular_pontos()
-                if pontos_dealer <= 21:
-                    if pontos_jogador > pontos_dealer:
-                        thread.client.send("\nVocê venceu!".encode("utf-8"))
-                    elif pontos_jogador < pontos_dealer:
-                        thread.client.send("\nVocê perdeu!".encode("utf-8"))
-                    else:
-                        thread.client.send("\nEmpate!".encode("utf-8"))"""
 
                 break
 
@@ -148,22 +126,13 @@ class Server:
 
         running = 1
         while running:
-            #inputready,outputready,exceptready = select.select(input,[],[])
 
-            #for s in inputready:
-
-                #if s == self.server:
-                    # handle the server socket
             if len(self.threads) < 2:
                 client, address = self.server.accept()
                 c = Client(client, address, self.blackjack)
                 c.start()
                 self.threads.append(c)
 
-                #elif s == sys.stdin:
-                    # handle standard input
-                    #junk = sys.stdin.readline()
-                    #running = 0
             if self.pause_counter == 0:
                 running = 0
 
