@@ -7,10 +7,10 @@ class Mao:
     def __init__(self):
         self.cartas = []
 
-    def receber_carta(self, carta):
+    def receber_carta(self, carta): # Adiciona uma carta à lista de cartas da mão
         self.cartas.append(carta)
 
-    def calcular_pontos(self):
+    def calcular_pontos(self): # Calcula a pontuação da mão atual
         total = sum([valores_cartas[carta] for carta in self.cartas])
         # Verifica se há um Ás na mão e se contar como 11 não ultrapassa 21 pontos
         if 'A' in self.cartas and total + 10 <= 21:

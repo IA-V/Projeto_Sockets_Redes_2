@@ -1,29 +1,27 @@
 import socket
-from threading import Thread
 
-# Server configuration
+# Configuração do servidor do jogo
 HOST = 'localhost'
 PORT = 2048
 
-# Create a socket object
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
-    # Connect to the server
+    # Cliente conecta-se ao servidor
     client_socket.connect((HOST, PORT))
     print("\n==================================BlackJack==================================")
 
-    while True:
-        # Receive the server's response
+    while True: # Loop para recebimento e tratamento das mensagens do servidor
+        
         data = client_socket.recv(1024)
-        if data.decode().endswith("input"):
+        if data.decode().endswith("input"): # Se o servidor requisitou entrada, exibe a mensagem de entrada
             res = input("\nDeseja [M]ais uma carta ou quer [P]arar? ").lower()
             client_socket.send(res.encode("utf-8"))
         else:
             print(data.decode())
 
 except KeyboardInterrupt:
-    print("Client disconnect.")
+    print("Cliente desconectou.")
 finally:
-    # Close the client socket
+    # Fecha o socket
     client_socket.close()
